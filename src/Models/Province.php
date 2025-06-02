@@ -7,9 +7,11 @@ use PDO;
 
 class Province extends Model
 {
+    protected string $table = 'provinces';
+
     public function create(string $name, int $countryId): bool
     {
-        $query = "INSERT INTO provinces (name, country_id) VALUES (:name, :country_id)";
+        $query = "INSERT INTO {$this->table} (name, country_id) VALUES (:name, :country_id)";
         $stmt = $this->db->prepare($query);
 
         return $stmt->execute([
@@ -20,7 +22,7 @@ class Province extends Model
 
     public function getById(int $id): ?array
     {
-        $stmt = $this->db->prepare("SELECT * FROM provinces WHERE id = :id");
+        $stmt = $this->db->prepare("SELECT * FROM {$this->table} WHERE id = :id");
         $stmt->execute(['id' => $id]);
 
         $province = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -30,7 +32,7 @@ class Province extends Model
     public function getCountryNameFromProvince(int $provinceId): ?string
     {
         $query = "SELECT countries.name AS country_name
-                FROM provinces
+                FROM {$this->table}
                 JOIN countries ON provinces.country_id = countries.id
                 WHERE provinces.id = :province_id";
 
@@ -43,7 +45,7 @@ class Province extends Model
 
     public function findByCountryId(int $countryId): array
     {
-        $stmt = $this->db->prepare("SELECT * FROM provinces WHERE country_id = :country_id ORDER BY name ASC");
+        $stmt = $this->db->prepare("SELECT * FROM {$this->table} WHERE country_id = :country_id ORDER BY name ASC");
         $stmt->execute(['country_id' => $countryId]);
 
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -51,7 +53,7 @@ class Province extends Model
 
     public function getAll(): array
     {
-        $query = "SELECT * FROM provinces ORDER BY name ASC";
+        $query = "SELECT * FROM {$this->table} ORDER BY name ASC";
         $stmt = $this->db->prepare($query);
         $stmt->execute();
 

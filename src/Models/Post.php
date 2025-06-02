@@ -7,16 +7,16 @@ use PDO;
 
 class Post extends Model
 {
-    public function create(?string $body, ?string $file, string $created_at, string $user_id): int|false
+    protected string $table = 'posts';
+
+    public function create(array $data): int|false
     {
-        $query = "INSERT INTO posts (body, file, created_at, user_id) VALUES (:body, :file, :created_at, :user_id)";
+        $query = "INSERT INTO {$this->table} (body, user_id) VALUES (:body, :user_id)";
         $stmt = $this->db->prepare($query);
 
         if ($stmt->execute([
-            'body'     => $body,
-            'file'     => $file,
-            'created_at' => $created_at,
-            'user_id' => $user_id,
+            'body'     => $data['body'],
+            'user_id' => $data['user_id'],
         ])) {
             return (int) $this->db->lastInsertId();
         }
@@ -24,28 +24,30 @@ class Post extends Model
         return false;
     }
 
-    public function updateFile($postId, $fileName)
+    public function delete($postsId)
     {
-        $sql = "UPDATE posts SET file = :file WHERE id = :id";
-        $stmt = $this->db->prepare($sql);
+        $query = "DELETE FROM {$this->table} WHERE id = :post_id";
+        $stmt = $this->db->prepare($query);
+
         return $stmt->execute([
-            ':file' => $fileName,
-            ':id' => $postId
+            'post_id' => $postsId,
         ]);
     }
 
     public function update(int $id, array $fields): bool {
         if (empty($fields)) return true;
-    
+        
         $setParts = [];
         $params = ['id' => $id];
-    
+        
         foreach ($fields as $key => $value) {
             $setParts[] = "$key = :$key";
+
+            $params[$key] = $value;
         }
-    
+        
         $setClause = implode(', ', $setParts);
-        $query = "UPDATE posts SET $setClause WHERE id = :id";
+        $query = "UPDATE {$this->table} SET $setClause WHERE id = :id";
         $stmt = $this->db->prepare($query);
     
         return $stmt->execute($params);
@@ -53,7 +55,7 @@ class Post extends Model
 
     public function incrementLikesCount($postId)
     {
-        $query = "UPDATE posts SET likes_count = likes_count + 1 WHERE id = ?";
+        $query = "UPDATE {$this->table} SET likes_count = likes_count + 1 WHERE id = ?";
         $stmt = $this->db->prepare($query);
 
         return $stmt->execute([$postId]);
@@ -61,7 +63,7 @@ class Post extends Model
 
     public function decrementLikesCount($postId)
     {
-        $query = "UPDATE posts SET likes_count = GREATEST(likes_count - 1, 0) WHERE id = ?";
+        $query = "UPDATE {$this->table} SET likes_count = GREATEST(likes_count - 1, 0) WHERE id = ?";
         $stmt = $this->db->prepare($query);
 
         return $stmt->execute([$postId]);
@@ -69,31 +71,52 @@ class Post extends Model
 
     public function incrementCommentsCount($postId)
     {
-        $query = "UPDATE posts SET comments_count = comments_count + 1 WHERE id = ?";
+        $query = "UPDATE {$this->table} SET comments_count = comments_count + 1 WHERE id = ?";
         $stmt = $this->db->prepare($query);
 
         return $stmt->execute([$postId]);
     }
 
-    public function getByUserId(int $userId): array
+    public function decrementCommentsCount($postId)
     {
-        $query = "SELECT posts.*, 
+        $query = "UPDATE {$this->table} SET comments_count = GREATEST(comments_count - 1, 0) WHERE id = ?";
+        $stmt = $this->db->prepare($query);
+
+        return $stmt->execute([$postId]);
+    }
+
+    public function getAllByUserId(int $userId): array
+    {
+        $query = "SELECT {$this->table}.*, 
                         users.name, 
                         users.lastname, 
                         users.profile_image
-                FROM posts
+                FROM {$this->table}
                 JOIN users ON posts.user_id = users.id
                 WHERE posts.user_id = :user_id
-                ORDER BY posts.created_at DESC
-                LIMIT 5";
+                ORDER BY posts.created_at DESC";
         $stmt = $this->db->prepare($query);
-        $stmt->execute(['user_id' => $userId]);
+        $stmt->execute([
+            'user_id' => $userId
+        ]);
+
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    public function getById(int $postId): ?array
+    {
+        $query = "SELECT * FROM {$this->table} WHERE id = :post_id";
+        $stmt = $this->db->prepare($query);
+        $stmt->execute([
+            'post_id' => $postId
+        ]);
+
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     }
 
     public function all(): array
     {
-        $query = "SELECT * FROM posts ORDER BY created_at DESC";
+        $query = "SELECT * FROM {$this->table} ORDER BY created_at DESC";
         $stmt = $this->db->prepare($query);
         $stmt->execute();
 
@@ -104,8 +127,8 @@ class Post extends Model
 
     public function allWithAuthors()
     {
-        $query = "SELECT posts.*, users.name, users.lastname, users.profile_image, users.id AS user_id
-                FROM posts
+        $query = "SELECT {$this->table}.*, users.name, users.lastname, users.profile_image, users.id AS user_id
+                FROM {$this->table}
                 JOIN users ON posts.user_id = users.id
                 ORDER BY posts.created_at DESC";
 
@@ -116,10 +139,22 @@ class Post extends Model
 
     public function countByUserId(int $userId): int
     {
-        $query = "SELECT COUNT(*) as count FROM posts WHERE user_id = :user_id";
+        $query = "SELECT COUNT(*) as count FROM {$this->table} WHERE user_id = :user_id";
         $stmt = $this->db->prepare($query);
         $stmt->execute(['user_id' => $userId]);
         $result = $stmt->fetch(PDO::FETCH_ASSOC);
         return (int) ($result['count'] ?? 0);
+    }
+
+    public function isAuthor(int $postId, int $userId): bool
+    {
+        $query = "SELECT 1 FROM {$this->table} WHERE id = :post_id AND user_id = :user_id LIMIT 1";
+        $stmt = $this->db->prepare($query);
+        $stmt->execute([
+            'post_id' => $postId,
+            'user_id' => $userId
+        ]);
+
+        return (bool) $stmt->fetch(PDO::FETCH_ASSOC);
     }
 }

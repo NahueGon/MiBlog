@@ -1,9 +1,7 @@
-
-<div class="relative bg-neutral-900 w-full md:max-w-200 border-1 border-neutral-700 rounded-lg overflow-hidden animate__animated animate__fadeIn animate__faster">
-
-    <div class="relative w-full min-h-30 sm:min-h-40 lg:min-h-50 bg-cover bg-center bg-no-repeat <?= $user['profile_background'] ? '' : 'bg-gradient-to-r from-cyan-500 to-blue-500 hover:bg-gradient-to-bl'?>"
-        style="<?=$user['profile_background'] 
-                ? 'background-image: url(/uploads/users/user_' . $user['id'] . '/' . $user['profile_background'] . ')'
+<div class="relative bg-neutral-900 w-full max-w-5xl border-1 border-neutral-700 rounded-lg overflow-hidden animate__animated animate__fadeIn animate__faster">
+    <div class="relative w-full min-h-30 sm:min-h-40 lg:min-h-50 bg-cover bg-center bg-no-repeat <?= $user['background_image'] ? '' : 'bg-gradient-to-r from-cyan-500 to-blue-500 hover:bg-gradient-to-bl'?>"
+        style="<?=$user['background_image'] 
+                ? 'background-image: url(/uploads/users/user_' . $user['id'] . '/' . $user['background_image'] . ')'
                 : '' ?>"
         >
         <?php if( $user['id'] === ( $currentUser['id'] ?? $user['id'] ) ): ?>
@@ -30,6 +28,30 @@
                         <i data-lucide="user-pen" class="size-5"></i>
                         Editar Perfil
                     </button>
+                <?php else: ?>
+                    <form 
+                        action="/follow/<?= $user['follow_status'] === 'accepted' ? 'unfollow' : ($user['follow_status'] === 'pending' ? 'cancel' : 'follow') ?>/<?= $user['id'] ?>" 
+                        method="POST"
+                    >
+                        <button type="submit" class="font-medium text-sm text-center text-neutral-400 hover:text-white cursor-pointer flex items-center gap-2">
+                            <?php if ($user['follow_status'] === 'accepted'): ?>
+                                <span class="relative group flex items-center gap-2">
+                                    <i data-lucide="check" class="size-5"></i>
+                                    <span class="transition-opacity duration-200 group-hover:opacity-0">Siguiendo</span>
+                                    <span class="absolute left-1 ml-6 top-0 opacity-0 transition-opacity duration-200 group-hover:opacity-100">Dejar de seguir</span>
+                                </span>
+                            <?php elseif ($user['follow_status'] === 'pending'): ?>
+                                <span class="relative group flex items-center gap-2">
+                                    <i data-lucide="clock" class="size-5"></i>
+                                    <span class="transition-opacity duration-200 group-hover:opacity-0">Pendiente</span>
+                                    <span class="absolute left-1 ml-6 top-0 opacity-0 transition-opacity duration-200 group-hover:opacity-100">Cancelar</span>
+                                </span>
+                            <?php else: ?>
+                                <i data-lucide="plus" class="size-5"></i>
+                                Seguir
+                            <?php endif; ?>
+                        </button>
+                    </form>
                 <?php endif; ?>
             </div>
         </div>
@@ -47,13 +69,13 @@
                 </button>
             <?php else: ?>
                 <p class="font-medium text-sm">
-                    <?= $user['province'] ?? $user['province']['name'] . ', ' . $user['country']['name'] ?>
+                    <?= $user['province'] ? $user['province']['name'] . ', ' . $user['country']['name'] : '' ?>
                 </p>
             <?php endif; ?>
         </div>
     </div>
 </div>
-<div class="relative bg-neutral-900 w-full md:max-w-200 border-1 border-neutral-700 rounded-lg overflow-hidden animate__animated animate__fadeIn animate__faster">
+<div class="relative bg-neutral-900 w-full border-1 border-neutral-700 rounded-lg overflow-hidden animate__animated animate__fadeIn animate__faster">
     <div class="p-8">
         <?php if( $user['id'] === ( $currentUser['id'] ?? $user['id'] ) ): ?>
             <button onClick="openModal('description')" data-modal-target="static-modal" data-modal-toggle="static-modal" type="button" class="font-medium rounded-lg text-sm text-center text-neutral-400 hover:text-white cursor-pointer flex items-center gap-1 mb-2">
@@ -67,7 +89,7 @@
         <?php endif; ?>
     </div>
 </div>
-<div class="relative w-full flex flex-col sm:flex-row gap-3 md:max-w-200 lg:hidden animate__animated animate__fadeIn animate__faster">
+<div class="relative w-full flex flex-col sm:flex-row gap-3 lg:hidden animate__animated animate__fadeIn animate__faster">
     <div class="bg-neutral-900 w-full border-1 border-neutral-700 rounded-lg p-8 flex-1">
         <div class="flex gap-5 justify-between flex-wrap">
             <span>852 Seguidores</span>

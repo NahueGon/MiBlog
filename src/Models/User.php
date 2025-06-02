@@ -7,9 +7,11 @@ use PDO;
 
 class User extends Model
 {
+    protected string $table = 'users';
+
     public function create(array $data): int|false
     {
-        $query = "INSERT INTO users (name, lastname, email, password) VALUES (:name, :lastname, :email, :password)";
+        $query = "INSERT INTO {$this->table} (name, lastname, email, password) VALUES (:name, :lastname, :email, :password)";
         $stmt = $this->db->prepare($query);
 
         if ($stmt->execute([
@@ -39,7 +41,7 @@ class User extends Model
         }
     
         $setClause = implode(', ', $setParts);
-        $query = "UPDATE users SET $setClause WHERE id = :id";
+        $query = "UPDATE {$this->table} SET $setClause WHERE id = :id";
         $stmt = $this->db->prepare($query);
     
         return $stmt->execute($params);
@@ -47,19 +49,25 @@ class User extends Model
 
     public function findByEmail(string $email): ?array
     {
-        $query = "SELECT * FROM users WHERE email = :email";
+        $query = "SELECT * FROM {$this->table} WHERE email = :email";
         $stmt = $this->db->prepare($query);
-        $stmt->execute(['email' => $email]);
-
+        $stmt->execute([
+            'email' => $email
+        ]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
         return $user ?: null;
     }
 
     public function existsEmailInAnotherUser($email, $currentUserId)
     {
-        $query = "SELECT id FROM users WHERE email = :email AND id != :id";
+        $query = "SELECT id FROM {$this->table} WHERE email = :email AND id != :id";
         $stmt = $this->db->prepare($query);
-        $stmt->execute(['email' => $email, 'id' => $currentUserId]);
+        $stmt->execute([
+            'email' => $email,
+            'id' => $currentUserId
+        ]);
+
         return $stmt->fetch() !== false;
     }
 
@@ -74,11 +82,13 @@ class User extends Model
         return null;
     }
 
-    public function getByUserId(int $userId): array
+    public function getById(int $userId): array
     {
-        $query = "SELECT * FROM users WHERE id = :userId";
+        $query = "SELECT * FROM {$this->table} WHERE id = :userId";
         $stmt = $this->db->prepare($query);
-        $stmt->execute(['userId' => $userId]);
+        $stmt->execute([
+            'userId' => $userId
+        ]);
 
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
         return $user ?: null;
@@ -87,11 +97,11 @@ class User extends Model
     public function all(?int $excludedId = null): array
     {
         if ($excludedId !== null) {
-            $query = "SELECT * FROM users WHERE id != :excludedId";
+            $query = "SELECT * FROM {$this->table} WHERE id != :excludedId";
             $stmt = $this->db->prepare($query);
             $stmt->bindParam(':excludedId', $excludedId, PDO::PARAM_INT);
         } else {
-            $query = "SELECT * FROM users";
+            $query = "SELECT * FROM {$this->table}";
             $stmt = $this->db->prepare($query);
         }
 
@@ -103,7 +113,7 @@ class User extends Model
 
     public function incrementProfileViewCount(int $userId): bool
     {
-        $query = "UPDATE users SET profile_views_count = profile_views_count + 1 WHERE id = :id";
+        $query = "UPDATE {$this->table} SET profile_views_count = profile_views_count + 1 WHERE id = :id";
         $stmt = $this->db->prepare($query);
 
         return $stmt->execute([

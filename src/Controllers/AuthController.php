@@ -2,15 +2,34 @@
 
 namespace App\Controllers;
 
-use App\Core\{ Auth, Controller, Validator, ValidationMessage, Notification };
+use App\Core\{ Auth, Controller, Validator, ValidationMessage, Notifier };
 
-use App\Models\{ User, Country, Post, Province, ProfileView };
+use App\Models\{ User, Country, Post, Province, ProfileView, Follow };
 
 use App\Traits\{ FlashMessageTrait, SanitizerTrait };
 
 class AuthController extends Controller
 {
     use FlashMessageTrait, SanitizerTrait;
+
+    private $userModel;
+    private $postModel;
+    private $countryModel;
+    private $provinceModel;
+    private $validator;
+    private $profileViewModel;
+    private $followModel;
+
+    public function __construct()
+    {
+        $this->userModel = new User();
+        $this->postModel = new Post();
+        $this->countryModel = new Country();
+        $this->provinceModel = new Province();
+        $this->validator = new Validator();
+        $this->profileViewModel = new ProfileView();
+        $this->followModel = new Follow();
+    }
 
     public function login()
     {
@@ -22,17 +41,15 @@ class AuthController extends Controller
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $input = $this->sanitize($_POST);
             
-            $validator = new Validator();
-            
-            $validator->validate($input, [
+            $this->validator->validate($input, [
                 'email' => 'required|string|email|min:6|max:100',
                 'password' => 'required|min:6|max:20'
             ]);
 
             $_SESSION['old_input'] = $input;
 
-            if ($validator->fails()) {
-                foreach ($validator->errors() as $error) {
+            if ($this->validator->fails()) {
+                foreach ($this->validator->errors() as $error) {
                     ValidationMessage::add($error['field'], $error['message']);
                 }
                 
@@ -40,18 +57,17 @@ class AuthController extends Controller
                 exit;
             }
 
-            $userModel = new User();
-            $user = $userModel->verifyCredentials($input['email'], $input['password']);
+            $user = $this->userModel->verifyCredentials($input['email'], $input['password']);
 
             if (!$user) {
                 ValidationMessage::add('credentials', 'Credenciales incorrectas');
-                Notification::add('error', 'Credenciales incorrectas');
+                Notifier::add('error', 'Credenciales incorrectas');
 
                 header('Location: /auth/login');
                 exit;
             }
             
-            Notification::add('success', 'Haz Inciado Sesion');
+            Notifier::add('success', 'Haz Inciado Sesion');
 
             unset($_SESSION['old_input']);
             $this->initializeSession($user);
@@ -72,10 +88,8 @@ class AuthController extends Controller
         
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $input = $this->sanitize($_POST);
-
-            $validator = new Validator();
             
-            $validator->validate($input, [
+            $this->validator->validate($input, [
                 'name' => 'required|string|min:3|max:50',
                 'lastname' => 'required|string|min:3|max:50',
                 'email' => 'required|string|email|unique|min:6|max:100',
@@ -85,8 +99,8 @@ class AuthController extends Controller
 
             $_SESSION['old_input'] = $input;
 
-            if ($validator->fails()) {
-                foreach ($validator->errors() as $error) {
+            if ($this->validator->fails()) {
+                foreach ($this->validator->errors() as $error) {
                     ValidationMessage::add($error['field'], $error['message']);
                 }
                 
@@ -94,11 +108,10 @@ class AuthController extends Controller
                 exit;
             }
 
-            $userModel = new User();
-            $userId = $userModel->create($input);
+            $userId = $this->userModel->create($input);
             
             if (!$userId) {
-                Notification::add('error', 'Error al registrar el usuario');
+                Notifier::add('error', 'Error al registrar el usuario');
   
                 header('Location: /auth/register');
                 exit;
@@ -106,9 +119,10 @@ class AuthController extends Controller
 
             $this->createUserDirectory($userId);
 
-            Notification::add('success', [
+            Notifier::add('success', [
                 'text' => 'Usuario registrado exitosamente',
-                'redirect' => '/auth/login'
+                'time' => true,
+                'path' => '/auth/login'
             ]);
 
             header('Location: /auth/register');
@@ -144,7 +158,7 @@ class AuthController extends Controller
         unset($_SESSION['old_input']);
 
         ValidationMessage::clear();
-        Notification::clear();
+        Notifier::clear();
     }
 
     private function createUserDirectory(int $userId): void
@@ -157,17 +171,12 @@ class AuthController extends Controller
 
     private function initializeSession(array $user): void
     {
-        $provinceModel = new Province();
-        $countryModel = new Country();
-        $postModel = new Post();
-        $profileViewModel = new ProfileView();
-
         $province = $country = null;
 
         if (!empty($user['id_province']) && is_int($user['id_province'])) {
-            $province = $provinceModel->getById($user['id_province']);
+            $province = $this->provinceModel->getById($user['id_province']);
             if ($province && isset($province['country_id'])) {
-                $country = $countryModel->getById($province['country_id']);
+                $country = $this->countryModel->getById($province['country_id']);
             }
         }
 
@@ -187,9 +196,12 @@ class AuthController extends Controller
         ] : null;
 
         $_SESSION['user_profile_image'] = $user['profile_image'];
-        $_SESSION['user_profile_background'] = $user['profile_background'];
+        $_SESSION['user_background_image'] = $user['background_image'];
 
-        $_SESSION['user_post_count'] = $postModel->countByUserId($user['id']);
-        $_SESSION['user_views_count'] = $profileViewModel->countByUserId($user['id']);
+        $_SESSION['user_post_count'] = $this->postModel->countByUserId($user['id']);
+        $_SESSION['user_views_count'] = $this->profileViewModel->countByUserId($user['id']);
+
+        $_SESSION['user_followers_count'] = $this->followModel->countFollowers($user['id']);
+        $_SESSION['user_follows_count'] = $this->followModel->countFollowing($user['id']);
     }
 }

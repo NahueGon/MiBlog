@@ -2,7 +2,7 @@
 
 namespace App\Traits;
 
-use App\Core\{ ValidationMessage, Notification };
+use App\Core\{ ValidationMessage, Notifier };
 
 trait FlashMessageTrait
 {
@@ -18,8 +18,11 @@ trait FlashMessageTrait
             'repeat_password' => [],
             'old_password' => [],
             'new_password' => [],
+            'body' => [],
+            'fielInput' => [],
             'fields' => [],
             'credentials' => [],
+            'comment' => [],
         ];
         
         foreach ($validationMessages as $field => $messages) {
@@ -35,7 +38,7 @@ trait FlashMessageTrait
 
     protected function getNotificationMessages(): array
     {
-        $notificationMessages = Notification::all();
+        $notificationMessages = Notifier::all();
 
         $messages = [
             'success' => [],

@@ -2,7 +2,7 @@
 
 namespace App\Core;
 
-class Notification
+class Notifier
 {
     private static array $types = ['success', 'error', 'info'];
 

@@ -6,8 +6,10 @@ trait TimeAgoTrait
 {
     private function getTimeAgo(string $datetime): string
     {
-        $date = new \DateTime($datetime);
-        $now = new \DateTime();
+        $timezone = new \DateTimeZone('America/Argentina/Buenos_Aires');
+
+        $date = new \DateTime($datetime, $timezone);
+        $now = new \DateTime('now', $timezone);
 
         $diff = $date->diff($now);
 
@@ -18,7 +20,7 @@ trait TimeAgoTrait
         } elseif ($diff->i > 0) {
             return "Hace {$diff->i} m";
         } else {
-            return "Hace unos segundos";
+            return "Ahora";
         }
     }
 }

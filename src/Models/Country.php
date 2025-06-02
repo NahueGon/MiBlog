@@ -7,9 +7,11 @@ use PDO;
 
 class Country extends Model
 {
+    protected string $table = 'countries';
+
     public function create(string $name): bool
     {
-        $query = "INSERT INTO countries (name) VALUES (:name)";
+        $query = "INSERT INTO {$this->table} (name) VALUES (:name)";
         $stmt = $this->db->prepare($query);
 
         return $stmt->execute([
@@ -19,7 +21,7 @@ class Country extends Model
 
     public function getAll(): array
     {
-        $query = "SELECT * FROM countries ORDER BY name ASC";
+        $query = "SELECT * FROM {$this->table} ORDER BY name ASC";
         $stmt = $this->db->prepare($query);
         $stmt->execute();
 
@@ -29,7 +31,7 @@ class Country extends Model
 
     public function getById(int $id): ?array
     {
-        $query = "SELECT * FROM countries WHERE id = :id";
+        $query = "SELECT * FROM {$this->table} WHERE id = :id";
         $stmt = $this->db->prepare($query);
         $stmt->execute(['id' => $id]);
 
@@ -39,7 +41,7 @@ class Country extends Model
 
     public function exists(string $name): bool
     {
-        $query = "SELECT COUNT(*) FROM countries WHERE name = :name";
+        $query = "SELECT COUNT(*) FROM {$this->table} WHERE name = :name";
         $stmt = $this->db->prepare($query);
         $stmt->execute(['name' => $name]);
 

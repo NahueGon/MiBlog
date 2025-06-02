@@ -1,4 +1,4 @@
-<footer class="bg-trasparent w-full p-4 sticky top-96">
+<footer class="bg-trasparent w-full p-4 sticky top-96 animate__animated animate__fadeIn animate__faster">
     <div class="w-full flex gap-6 flex-col ">
         <ul class="flex flex-wrap gap-4 items-center text-xs font-medium text-neutral-400 justify-evenly p-4">
             <li>

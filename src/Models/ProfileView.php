@@ -7,9 +7,11 @@ use PDO;
 
 class ProfileView extends Model
 {
+    protected string $table = 'profile_views';
+
     public function hasViewed(int $userId, int $viewerId): bool 
     {
-        $query = "SELECT 1 FROM profile_views WHERE user_id = :user_id AND viewer_id = :viewer_id";
+        $query = "SELECT 1 FROM {$this->table} WHERE user_id = :user_id AND viewer_id = :viewer_id";
         $stmt = $this->db->prepare($query);
         $stmt->execute([
             'user_id' => $userId,
@@ -21,7 +23,7 @@ class ProfileView extends Model
 
     public function addView(int $userId, int $viewerId): bool 
     {
-        $query = "INSERT INTO profile_views (user_id, viewer_id) VALUES (:user_id, :viewer_id)";
+        $query = "INSERT INTO {$this->table} (user_id, viewer_id) VALUES (:user_id, :viewer_id)";
         $stmt = $this->db->prepare($query);
         
         return $stmt->execute([
@@ -32,7 +34,7 @@ class ProfileView extends Model
 
     public function countByUserId(int $userId): int
     {
-        $query = "SELECT COUNT(*) as count FROM profile_views WHERE user_id = :user_id";
+        $query = "SELECT COUNT(*) as count FROM {$this->table} WHERE user_id = :user_id";
         $stmt = $this->db->prepare($query);
         $stmt->execute([
             'user_id' => $userId

@@ -1,5 +1,5 @@
-<div class="bg-neutral-900 w-full border-1 border-neutral-700 rounded-lg flex flex-col gap-4 overflow-hidden">
-    <div class="flex flex-col-reverse gap-5 p-4 text-sm">
+<div class="bg-neutral-900 w-full border-1 border-neutral-700 rounded-lg flex flex-col gap-4 overflow-hidden animate__animated animate__fadeIn animate__faster">
+    <div class="flex flex-col gap-5 p-4 text-sm">
         <a class="hover:underline flex justify-between" href="">
             Visualizaciones al perfil
             <span class="text-blue-600">
@@ -15,13 +15,13 @@
         <a class="hover:underline flex justify-between" href="">
             Seguidores
             <span class="text-blue-600">
-                <?= $user['posts_count'] ?>
+                <?= $user['followers_count'] ?>
             </span>
         </a>
         <a class="hover:underline flex justify-between" href="">
             Seguidos
             <span class="text-blue-600">
-                <?= $user['posts_count'] ?>
+                <?= $user['follows_count'] ?>
             </span>
         </a>
     </div>

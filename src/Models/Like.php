@@ -7,9 +7,11 @@ use PDO;
 
 class Like extends Model
 {
+    protected string $table = 'likes';
+
     public function addLike(int $postId, int $userId): bool
     {
-        $query = "INSERT INTO likes (post_id, user_id) VALUES (:post_id, :user_id)";
+        $query = "INSERT INTO {$this->table} (post_id, user_id) VALUES (:post_id, :user_id)";
         $stmt = $this->db->prepare($query);
 
         return $stmt->execute([
@@ -20,7 +22,7 @@ class Like extends Model
 
     public function removeLike(int $postId, int $userId): bool
     {
-        $query = "DELETE FROM likes WHERE post_id = :post_id AND user_id = :user_id";
+        $query = "DELETE FROM {$this->table} WHERE post_id = :post_id AND user_id = :user_id";
         $stmt = $this->db->prepare($query);
 
         return $stmt->execute([
@@ -31,7 +33,7 @@ class Like extends Model
 
     public function userAlreadyLiked(int $postId, int $userId): bool
     {
-        $query = "SELECT COUNT(*) FROM likes WHERE post_id = :post_id AND user_id = :user_id";
+        $query = "SELECT COUNT(*) FROM {$this->table} WHERE post_id = :post_id AND user_id = :user_id";
         $stmt = $this->db->prepare($query);
         $stmt->execute([
             'post_id' => $postId,

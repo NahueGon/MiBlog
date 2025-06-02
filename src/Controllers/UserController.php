@@ -3,46 +3,98 @@
 
 namespace App\Controllers;
 
-use App\Core\{ Auth, Controller, Validator, ValidationMessage, Notification };
+use App\Core\{ Auth, Controller, Validator, ValidationMessage, Notifier };
 
-use App\Models\{ User, Country, Province, Post, Like, Comment, ProfileView };
+use App\Models\{ User, Country, Province, Post, Like, Comment, ProfileView, Follow, Notification };
 
-use App\Traits\{ TimeAgoTrait, SanitizerTrait, FlashMessageTrait };
+use App\Traits\{ TimeAgoTrait, SanitizerTrait, FlashMessageTrait, handleImageUpload };
 
 class UserController extends Controller
 {
-    use TimeAgoTrait, SanitizerTrait, FlashMessageTrait;
+    use TimeAgoTrait, SanitizerTrait, FlashMessageTrait, handleImageUpload;
 
-    public function profile()
+    private $userModel;
+    private $postModel;
+    private $countryModel;
+    private $provinceModel;
+    private $viewModel;
+    private $likeModel;
+    private $commentModel;
+    private $followModel;
+    private $notificationModel;
+    private $validator;
+
+    public function __construct()
+    {
+        $this->userModel = new User();
+        $this->postModel = new Post();
+        $this->countryModel = new Country();
+        $this->provinceModel = new Province();
+        $this->likeModel = new Like();
+        $this->commentModel = new Comment();
+        $this->viewModel = new ProfileView();
+        $this->followModel = new Follow();
+        $this->notificationModel = new Notification();
+        $this->validator = new Validator();
+    }
+
+    public function profile($id = null)
     {
         if (!Auth::check()) {
             header('Location: /auth/login');
             exit;
         }
-    
-        $user = Auth::user();
-        $countryModel = new Country();
-        $provinceModel = new Province();
-        $postModel = new Post();
-        $likeModel = new Like();
-        $commentModel = new Comment();
 
-        $posts = $this->enrichPosts($postModel->getByUserId($user['id']), $user);
+        $currentUser = Auth::user();
+
+        $user = $id ? $this->userModel->getById($id) : $currentUser;
+
+        if (!$user) {
+            http_response_code(404);
+            echo "Usuario no encontrado";
+            return;
+        }
+
+        if ($id && $currentUser['id'] !== $user['id']) {
+            $this->trackProfileView($user['id'], $currentUser['id']);
+        }
+
+        $province = isset($user['province']['id']) && $user['province']['id']
+                    ? $this->provinceModel->getById($user['province']['id'])
+                    : null;
+        $country = $province ? $this->countryModel->getById($province['country_id']) : null;
+        
+        $user['province'] = $province;
+        $user['country'] = $country;
+        
+        $allPosts = $this->enrichPosts($this->postModel->getAllByUserId($user['id']), $user);
+        $posts = array_slice($allPosts, 0, 5);
+
+        $user['posts_count'] = $this->postModel->countByUserId($user['id']);
+        $user['views_count'] = $this->viewModel->countByUserId($user['id']);
+
+        $user['follow_status'] = $currentUser['id'] !== $user['id']
+            ? $this->followModel->getFollowStatus($currentUser['id'], $user['id'])
+            : null;
+
+        $user['followers_count'] = $this->followModel->countFollowers($user['id']);
+        $user['follows_count'] = $this->followModel->countFollowing($user['id']);
 
         $validationMessages = $this->getValidationMessages();
         $notificationMessages = $this->getNotificationMessages();
 
         $this->view('users.profile', array_merge([
-            'title' => 'Perfil',
+            'title' => $user['name'] . ' ' . $user['lastname'],
             'user' => $user,
-            'countries' => $countryModel->getAll(),
-            'provinces' => $provinceModel->getAll(),
+            'currentUser' => $currentUser,
             'posts' => $posts ?? [],
-            'notifications' => $notificationMessages
+            'notifications' => $notificationMessages,
+            'countries' => $this->countryModel->getAll(),
+            'provinces' => $this->provinceModel->getAll(),
         ], $validationMessages), 'profile');
 
         ValidationMessage::clear();
-        Notification::clear();
+        Notifier::clear();
     }
 
     public function update()
@@ -54,92 +106,149 @@ class UserController extends Controller
         
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $user = Auth::user();
-            $userModel = new User();
-            $validator = new Validator();
 
-            $currentUser = $userModel->findByEmail($user['email']);
+            $currentUser = $this->userModel->findByEmail($user['email']);
             $input = $this->sanitize($_POST);
+            $input['files'] = $_FILES;
             $dataToUpdate = $this->prepareUpdateData($input, $user);
 
             $rules = $this->getValidationRules($dataToUpdate);
-            $validator->validate($dataToUpdate, $rules);
+            $this->validator->validate($dataToUpdate, $rules);
 
             $this->handlePasswordChange($input, $currentUser, $dataToUpdate);
             
-            if ($validator->fails()) {
+            if ($this->validator->fails()) {
                 $_SESSION['show_modal'] = true;
                 
-                foreach ($validator->errors() as $error) {
+                foreach ($this->validator->errors() as $error) {
                     ValidationMessage::add($error['field'], $error['message']);
                 }
                 
                 header('Location: /user/profile');
                 exit;
             }
-            
-            $this->handleImageUpload($user, $dataToUpdate, 'imageInput', 'profile_image');
-            $this->handleImageUpload($user, $dataToUpdate, 'backgroundImageInput', 'profile_background');
 
-            if (!$userModel->update($user['id'], $dataToUpdate)) {
-                Notification::error('Hubo un problema al actualizar el perfil.');
-
+            if(!empty($dataToUpdate)){
+                if(isset($dataToUpdate['profile_image']) && ($dataToUpdate['profile_image']['error'] !== UPLOAD_ERR_OK)){
+                    Notifier::add('error','Hubo un problema al actualizar la imagen de perfil.');
+                    
+                    header('Location: /user/profile');
+                    exit;
+                }
+                
+                if (isset($dataToUpdate['background_image']) && $dataToUpdate['background_image']['error'] !== UPLOAD_ERR_OK) {
+                    Notifier::add('error','Hubo un problema al actualizar la imagen background.');
+                    
+                    header('Location: /user/profile');
+                    exit;
+                }
+                
+                $this->handleImageUpload($user['id'], $dataToUpdate);
+            }
+    
+            if (!$this->userModel->update($user['id'], $dataToUpdate)) {
+                Notifier::add('error','Hubo un problema al actualizar el perfil.');
+                
                 header('Location: /user/profile');
                 exit;
             }
     
             Auth::refresh(array_merge($user, $dataToUpdate));
-            Notification::add('success','Perfil actualizado correctamente.');
+            Notifier::add('success','Perfil actualizado correctamente.');
 
             header('Location: /user/profile');
             exit;
         }
     }
 
-    public function publicProfile($id)
+    public function notifications()
     {
-        $currentUser = Auth::user();
-        $userModel = new User();
-        $user = $userModel->getByUserId($id);
-
-        if (!$user) {
-            http_response_code(404);
-            echo "Usuario no encontrado";
-            return;
+        if (!Auth::check()) {
+            header('Location: /auth/login');
+            exit;
         }
 
-        if ($currentUser && $currentUser['id'] !== $user['id']) {
-            $this->trackProfileView($user['id'], $currentUser['id']);
+        $user = Auth::user();
+
+        $provinceId = $user['id_province'] ?? null;
+        $province = $country = '';
+
+        if ($provinceId !== null && is_int($provinceId)) {
+            $province = $this->provinceModel->getById($provinceId);
+            $country = $this->countryModel->getById($province['country_id']);
         }
-        
-        $province = $user['id_province'] ? (new Province())->getById($user['id_province']) : null;
-        $country = $province ? (new Country())->getById($province['country_id']) : null;
 
-        $postModel = new Post();
-        $likeModel = new Like();
-        $commentModel = new Comment();
+        $notifications = $this->notificationModel->getByUser($user['id']);
 
-        $posts = $postModel->getByUserId($user['id']);
-        $user['posts_count'] = $postModel->countByUserId($user['id']);
+        foreach ($notifications as &$notif) {
+            $data = json_decode($notif['data'], true);
+            $notif['time_ago'] = $this->getTimeAgo($notif['created_at']);
 
-        foreach ($posts as &$post) {
-            $post['liked_by_user'] = $likeModel->userAlreadyLiked($post['id'], $user['id']);
-            $post['comments'] = $commentModel->getByPostId($post['id']);
-            $post['time_ago'] = $this->getTimeAgo($post['created_at']);
-
-            foreach ($post['comments'] as &$comment) {
-                $comment['time_ago'] = $this->getTimeAgo($comment['created_at']);
+            if (isset($data['from_user_id'])) {
+                $fromUser = $this->userModel->getById((int)$data['from_user_id']);
+                $notif['from_id'] = $fromUser['id'] ?? '';
+                $notif['from_username'] = $fromUser['name'] . ' ' . $fromUser['lastname'] ?? 'Usuario';
+                $notif['from_profile_image'] = $fromUser['profile_image'] ?? 'anon-profile.jpg';
             }
-
         }
 
-        $this->view('users.profile', [
-            'title' => $user['name'],
+        $this->view('users.notifications', [
+            'title' => 'Notificaciones',
             'user' => $user,
-            'currentUser' => $currentUser,
-            'country' => $country ?? '',
-            'province' => $province ?? '',
-            'posts' => $posts ?? [],
-        ], 'profile');
+            'country' => $country,
+            'province' => $province,
+            'notifications' => $notifications,
+        ]);
+    }
+
+    public function network()
+    {
+        if (!Auth::check()) {
+            header('Location: /auth/login');
+            exit;
+        }
+
+        $user = Auth::user();
+
+        $provinceId = $user['id_province'] ?? null;
+        $province = $country = '';
+
+        if ($provinceId !== null && is_int($provinceId)) {
+            $province = $this->provinceModel->getById($provinceId);
+            $country = $this->countryModel->getById($province['country_id']);
+        }
+
+        $users = $this->getUserSuggestions($this->userModel, $user['id'] ?? null);
+        $pendingRequests = $this->followModel->getPendingRequests($user['id']);
+
+        $notificationMessages = $this->getNotificationMessages();
+
+        $this->view('users.network', [
+            'title' => 'Red',
+            'user' => $user,
+            'users' => $users,  
+            'country' => $country,
+            'province' => $province,
+            'pendingRequests' => $pendingRequests,
+            'notifications' => $notificationMessages
+        ]);
+
+        Notifier::clear();
+    }
+
+    private function getUserSuggestions(User $userModel, ?int $excludeId): array
+    {
+        $allUsers = $userModel->all($excludeId);
+        shuffle($allUsers);
+        $suggestions = array_slice($allUsers, 0, 20);
+        
+        if ($excludeId) {
+            foreach ($suggestions as &$user) {
+                $user['follow_status'] = $this->followModel->getFollowStatus($excludeId, $user['id']);
+            }
+        }
+
+        return $suggestions;
     }
 
     private function getValidationRules(array $dataToUpdate): array
@@ -183,6 +292,14 @@ class UserController extends Controller
     {
         $update = [];
         
+        if ($data['files']['backgroundImageInput']['error'] !== UPLOAD_ERR_NO_FILE) {
+            $update['background_image'] = $_FILES['backgroundImageInput'];
+        }
+
+        if ($data['files']['profileImageInput']['error'] !== UPLOAD_ERR_NO_FILE) {  
+            $update['profile_image'] = $_FILES['profileImageInput'];
+        }
+
         if ($data['name'] !== $currentUser['name']) {
             $update['name'] = $data['name'];
         }
@@ -198,8 +315,8 @@ class UserController extends Controller
         if ($data['id_province'] !== '') {
             if ((int)$data['id_country'] !== (int)$currentUser['country']['id'] || (int)$data['id_province'] !== (int)$currentUser['province']['id']) {
 
-                $province = (new Province())->getById($data['id_province']);
-                $country = (new Country())->getById($data['id_country']);
+                $province = $this->province->getById($data['id_province']);
+                $country = $this->country->getById($data['id_country']);
 
                 $update['id_country'] = $country['id'];
                 $update['country'] = $country['name'];
@@ -228,17 +345,15 @@ class UserController extends Controller
             return;
         }
 
-        $validator = new Validator();
-
         if ($oldPassword === '' || $newPassword === '') {
             if ($oldPassword === '') {
-                $validator->addError('old_password', 'Debes ingresar tu contraseña actual.');
+                $this->validator->addError('old_password', 'Debes ingresar tu contraseña actual.');
             }
             if ($newPassword === '') {
-                $validator->addError('new_password', 'Debes ingresar una nueva contraseña.');
+                $this->validator->addError('new_password', 'Debes ingresar una nueva contraseña.');
             }
         } else {
-            $validator->validate([
+            $this->validator->validate([
                 'old_password' => $oldPassword,
                 'new_password' => $newPassword,
             ], [
@@ -247,12 +362,12 @@ class UserController extends Controller
             ]);
 
             if (!password_verify($oldPassword, $currentUser['password'])) {
-                $validator->addError('old_password', 'La contraseña actual es incorrecta.');
+                $this->validator->addError('old_password', 'La contraseña actual es incorrecta.');
             }
         }
 
-        if ($validator->fails()) {
-            foreach ($validator->errors() as $error) {
+        if ($this->validator->fails()) {
+            foreach ($this->validator->errors() as $error) {
                 ValidationMessage::add($error['field'], $error['message']);
             }
             $_SESSION['show_modal'] = true;
@@ -263,16 +378,15 @@ class UserController extends Controller
         $update['password'] = $newPassword;
     }
 
-        private function enrichPosts(array $posts, ?array $user): array
+    private function enrichPosts(array $posts, ?array $user): array
     {
-        $likeModel = new Like();
-        $commentModel = new Comment();
-
         foreach ($posts as &$post) {
+            $post['user'] = $this->userModel->getById($post['user_id']); 
+            
             $post['liked_by_user'] = $user 
-                ? $likeModel->userAlreadyLiked($post['id'], $user['id'])
+                ? $this->likeModel->userAlreadyLiked($post['id'], $user['id'])
                 : false;
-            $post['comments'] = $commentModel->getByPostId($post['id']);
+            $post['comments'] = $this->commentModel->getByPostId($post['id']);
             $post['time_ago'] = $this->getTimeAgo($post['created_at']);
 
             foreach ($post['comments'] as &$comment) {
@@ -284,33 +398,11 @@ class UserController extends Controller
         return $posts;
     }
 
-    private function handleImageUpload(array $user, array &$update, string $fieldName, string $columnName)
-    {
-        if (!isset($_FILES[$fieldName]) || $_FILES[$fieldName]['error'] !== UPLOAD_ERR_OK) return;
-
-        $uploadDir = __DIR__ . '/../../public/uploads/users/user_' . $user['id'] . '/';
-        if (!is_dir($uploadDir)) mkdir($uploadDir, 0777, true);
-
-        $originalName = basename($_FILES[$fieldName]['name']);
-        $tmpPath = $_FILES[$fieldName]['tmp_name'];
-        $filePrefix = $columnName === 'profile_background' ? 'background_' : '';
-        $fileName = "{$user['name']}_{$user['lastname']}_{$filePrefix}{$originalName}";
-        $destination = $uploadDir . $fileName;
-
-        if (move_uploaded_file($tmpPath, $destination)) {
-            $update[$columnName] = $fileName;
-        } else {
-            FlashMessage::error("Error al subir el archivo: $columnName");
-        }
-    }
-
     private function trackProfileView(int $viewedId, int $viewerId)
     {
-        $viewModel = new ProfileView();
-
-        if (!$viewModel->hasViewed($viewedId, $viewerId)) {
-            $viewModel->addView($viewedId, $viewerId);
-            (new User())->incrementProfileViewCount($viewedId);
+        if (!$this->viewModel->hasViewed($viewedId, $viewerId)) {
+            $this->viewModel->addView($viewedId, $viewerId);
+            $this->userModel->incrementProfileViewCount($viewedId);
         }
     }
 }

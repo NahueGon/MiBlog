@@ -1,3 +1,12 @@
+<?php if (isset($_SESSION['show_modal']) && $_SESSION['show_modal']) : ?>
+    <script>
+        window.addEventListener('DOMContentLoaded', () => {
+            const modal = document.getElementById('static-modal');
+            if (modal) modal.classList.remove('hidden');
+        });
+    </script>
+    <?php unset($_SESSION['show_modal']); ?>
+<?php endif; ?>
 <div id="static-modal" data-modal-backdrop="static" tabindex="-1" class="<?= $email || $password ? '' : 'hidden' ?> overflow-y-auto overflow-x-hidden fixed top-0 bottom-0 right-0 left-0 z-50 justify-center items-center w-full">
     <div class="absolute inset-0 bg-neutral-900 opacity-50"></div>
     <div class="relative p-4 w-full h-full flex justify-center items-center animate__animated animate__fadeIn animate__faster">
@@ -23,15 +32,15 @@
                             <img class="w-full h-full" src="/uploads/users/anon-profile.jpg" alt="user photo">
                         <?php endif; ?>
                         
-                        <input id="imageInput" type="file" name="imageInput" class="hidden" accept="image/*">
+                        <input id="profileImageInput" type="file" name="profileImageInput" class="hidden" accept="image/*">
                     </div>
                     <div onClick="openImageInput('background')"  id="backgroundImageFields" class="relative hidden m-auto overflow-hidden rounded-lg cursor-pointer group">
                         <div class="absolute w-full bg-neutral-900 text-center bottom-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                             Cambiar
                         </div>
-                        <div class="w-full min-w-150 min-h-40 bg-cover bg-center bg-no-repeat <?= $user['profile_background'] ? '' : 'bg-gradient-to-r from-cyan-500 to-blue-500 hover:bg-gradient-to-bl'?>" 
-                            style="<?= $user['profile_background'] 
-                                ? 'background-image: url(/uploads/users/user_' . $user['id'] . '/' . $user['profile_background'] . ')'
+                        <div class="w-full min-w-150 min-h-40 bg-cover bg-center bg-no-repeat <?= $user['background_image'] ? '' : 'bg-gradient-to-r from-cyan-500 to-blue-500 hover:bg-gradient-to-bl'?>" 
+                            style="<?= $user['background_image'] 
+                                ? 'background-image: url(/uploads/users/user_' . $user['id'] . '/' . $user['background_image'] . ')'
                                 : '' ?>">
                         </div>
                         <input id="backgroundImageInput" type="file" name="backgroundImageInput" class="hidden" accept="image/*">
@@ -108,7 +117,9 @@
                          <div class="relative mb-2 w-full">
                             <label for="id_country" class="absolute text-sm text-neutral-300 duration-300 transform -translate-y-4 scale-75 top-2 z-10 origin-[0] bg-neutral-800 px-2 peer-focus:px-2 peer-focus:text-blue-500 peer-placeholder-shown:scale-100 peer-placeholder-shown:-translate-y-1/2 peer-placeholder-shown:top-1/2 peer-focus:top-2 peer-focus:scale-75 peer-focus:-translate-y-4 rtl:peer-focus:translate-x-1/4 rtl:peer-focus:left-auto start-1">País</label>
                             <select name="id_country" id="id_country" class="border text-sm rounded-lg block w-full p-2.5 bg-neutral-800 border-neutral-700 placeholder-neutral-500 text-white focus:ring-blue-500 focus:border-blue-500 mb-4"">
-                                <option value="<?= $user['country']['id'] ?>">Seleccionar País</option>
+                                <option value="<?= isset($user['country']['id']) ?? $user['country']['id']?>">
+                                    Seleccionar País
+                                </option>
                                 <?php foreach ($countries as $country): ?>
                                     <option value="<?= $country['id'] ?>" <?= $country['id'] == ($user['country']['id'] ?? null) ? 'selected' : '' ?>>
                                         <?= $country['name'] ?>
